@@ -148,6 +148,7 @@ pub enum ClError {
     RangeOrderExists = 22,
     ExactOutNotFullyFilled = 23,
     NotInitialized = 24,
+    MathOverflow = 25,
 }
 
 #[contracttype]

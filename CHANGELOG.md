@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `soroban_amm_simulator`: the concentrated-liquidity module had no swap engine, and `ClPoolState::current_tick` was hardcoded to 0 by `initialize` whatever the price (#961). `ClPoolState::swap` now ports the contract's tick walk step for step (tick crossing with `liquidity_net`, fee growth and `fee_growth_outside` flips, protocol fee split, price limits, partial fills), `initialize` derives the tick from the price, and a new `initialize_at_tick` mirrors the contract's `initialize`. `tests/cl_swap_parity.rs` runs the real contract beside the simulator on shared fixtures and requires exact agreement after every swap. The sqrt price and current tick are now private (read them with `sqrt_price_x96()` / `current_tick()`) so they can no longer be set out of step with each other, `cl::math::sqrt_price_x96_to_tick` now returns the floor tick as the contract does instead of rounding up between ticks, `ClPoolState::new` rejects `fee_bps = 10_000` as the contract does, and the placeholder `initialize_tick`, which created tick entries the contract can never hold, is removed.
+- `concentrated_liquidity`: the position path (mint, single-token mint and its
+  quote, `modify_position`, burn, `quote_position`) converted between liquidity
+  and token amounts through `mul_u128_u96`, which silently dropped every bit of
+  its product above 128. `overflow-checks` did not catch it because the loss
+  happened in a `wrapping_shl`. Sqrt-price differences grow exponentially with
+  tick magnitude, so ordinary ranges overflowed: for L = 1e6 over
+  [100_000, 200_000] the true product is 5.09x `u128::MAX` and the result came
+  back 55.7x too small, and a 10^12 deposit there was credited ~1e6 liquidity
+  instead of ~1.5e14. `get_amount0_delta`, `get_amount1_delta`,
+  `get_liquidity_for_amount0` and `get_liquidity_for_amount1` are now evaluated
+  over 256-bit intermediates through the existing `mul_div` and
+  `amount{0,1}_delta_exact` helpers, keep rounding down (toward the pool), and
+  return `None` instead of a wrapped value when a result cannot be represented.
+  The contract reports that as the new `ClError::MathOverflow = 25` (mirrored
+  in `pool_interfaces`). `mul_u128_u96` is removed. `amm-fuzz` now checks all
+  four conversions against an arbitrary-precision reference (#963).
 - `@soroban-amm/sdk`: `AmmErrors` / `AmmErrorNames` stopped at code 18, so `decodeError` fell through to a generic error for `AlreadyExecuted` (19), `ProposalExpired` (20) and the new `NotInitialized` (21). All three are now mapped, and a test parses `pub enum AmmError` from `contracts/amm/src/lib.rs` so the TypeScript map can't fall behind the contract again unnoticed.
 - `incentive_campaigns`: `recover_leftover_funds` could run more than once on the same campaign. Recovery marks the campaign inactive but leaves `funding_amount - total_distributed` unchanged, so every repeat call transferred the same leftover again, taken from the balance other campaigns hold in the same reward token. A campaign that is already inactive now returns `IncentiveError::CampaignInactive`.
 - `concentrated_liquidity`: the swap engine priced every step in a
