@@ -36,6 +36,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The contract reports that as the new `ClError::MathOverflow = 25` (mirrored
   in `pool_interfaces`). `mul_u128_u96` is removed. `amm-fuzz` now checks all
   four conversions against an arbitrary-precision reference (#963).
+- `twap_consumer`: `get_twap_all` trapped for the whole tracked set once any
+  concentrated-liquidity pool was registered. `save_snapshot` and
+  `save_cl_snapshot` pushed into one untyped list and `get_twap_all` read every
+  entry through the AMM-only `get_price_cumulative`, which a CL pool does not
+  implement. Tracked pools now carry a `PoolType` (`Amm` / `Cl`), mirroring
+  `twal_consumer`, and `get_twap_all` dispatches per entry to `get_twap_price`
+  or `get_cl_twap`. It returns `Vec<TwapEntry>` (`pool`, `pool_type`, `twap`)
+  instead of `Vec<(Address, i128)>`, because the two paths report different
+  quantities: a price for `Amm`, a mean tick (widened from `i64`) for `Cl`.
+  `get_tracked_pools` keeps its signature; `get_tracked_pools_typed` adds the
+  types. A pool that does not implement the interface its type implies, or is
+  not a contract, now returns the new `TwapError::CrossContractCallFailed = 14`
+  instead of a host trap, on every snapshot and TWAP read.
+  **Migration:** the typed list is stored under a new key. Until it is first
+  written, the legacy untyped list is read with every entry typed `Amm`, which
+  is how it was read before. The first change to the tracked set (a new pool,
+  or a re-typed one) writes the typed list and deletes the legacy key. A
+  legacy entry that is really a CL pool is re-typed `Cl` by the keeper's next
+  `save_cl_snapshot` for it; until then `get_twap_all` returns
+  `CrossContractCallFailed` for it rather than trapping (#964).
 - `@soroban-amm/sdk`: `AmmErrors` / `AmmErrorNames` stopped at code 18, so `decodeError` fell through to a generic error for `AlreadyExecuted` (19), `ProposalExpired` (20) and the new `NotInitialized` (21). All three are now mapped, and a test parses `pub enum AmmError` from `contracts/amm/src/lib.rs` so the TypeScript map can't fall behind the contract again unnoticed.
 - `incentive_campaigns`: `recover_leftover_funds` could run more than once on the same campaign. Recovery marks the campaign inactive but leaves `funding_amount - total_distributed` unchanged, so every repeat call transferred the same leftover again, taken from the balance other campaigns hold in the same reward token. A campaign that is already inactive now returns `IncentiveError::CampaignInactive`.
 - `concentrated_liquidity`: the swap engine priced every step in a
