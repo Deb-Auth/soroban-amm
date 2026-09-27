@@ -121,6 +121,23 @@ jobs:
             - name: Test
               run: go test ./... -count=1
 
+    # Every JS package must type-check against the Node major CI runs on, and
+    # declare it in engines.node. .nvmrc is the single source of truth; the
+    # npm-packages job below reads it too (#983).
+    node-versions:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+            - name: Setup Node
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: .nvmrc
+            - name: Check @types/node and engines.node match .nvmrc
+              run: node scripts/check_node_versions.mjs
+
     npm-packages:
         runs-on: ubuntu-latest
         permissions:
@@ -155,7 +172,7 @@ jobs:
             - name: Setup Node
               uses: actions/setup-node@v7
               with:
-                  node-version: 22
+                  node-version-file: .nvmrc
             # `npm ci` installs exactly what each workspace's package-lock.json
             # pins and errors when the lockfile and package.json disagree, so a
             # transitive dependency publishing between two runs can no longer

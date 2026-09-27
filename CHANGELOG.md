@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The contract reports that as the new `ClError::MathOverflow = 25` (mirrored
   in `pool_interfaces`). `mul_u128_u96` is removed. `amm-fuzz` now checks all
   four conversions against an arbitrary-precision reference (#963).
+- `@types/node` matches the Node 22 runtime CI uses. `packages/sdk`,
+  `services/graphql-api` and `services/webhook-streamer` type-checked against
+  Node 26 typings, so `tsc` accepted APIs that do not exist on Node 22; all
+  three are on `^22.20.4` now (webhook-streamer's exact `26.5.0` pin came from
+  a Dependabot bump and is replaced by a caret range like the others). `.nvmrc`
+  is the single source of the CI Node major, `setup-node` reads it, every
+  package in the CI matrix declares `engines.node: ">=22"`, and a new
+  `node-versions` CI job (`make check-node-versions`) fails when any package's
+  `@types/node` or `engines.node` disagrees with it (#983).
 - `@soroban-amm/sdk`: `AmmErrors` / `AmmErrorNames` stopped at code 18, so `decodeError` fell through to a generic error for `AlreadyExecuted` (19), `ProposalExpired` (20) and the new `NotInitialized` (21). All three are now mapped, and a test parses `pub enum AmmError` from `contracts/amm/src/lib.rs` so the TypeScript map can't fall behind the contract again unnoticed.
 - `incentive_campaigns`: `recover_leftover_funds` could run more than once on the same campaign. Recovery marks the campaign inactive but leaves `funding_amount - total_distributed` unchanged, so every repeat call transferred the same leftover again, taken from the balance other campaigns hold in the same reward token. A campaign that is already inactive now returns `IncentiveError::CampaignInactive`.
 - `concentrated_liquidity`: the swap engine priced every step in a
