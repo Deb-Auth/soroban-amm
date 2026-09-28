@@ -29,8 +29,11 @@ jobs:
         run: bash scripts/build_workspace.sh
       - name: Check contract sizes
         run: bash scripts/size_report.sh --fail-on-limit
+      # Same pin as the Dockerfile, README.md and smoke-test.yml. This runs
+      # under rust-toolchain.toml, and older releases lock an ethnum that no
+      # longer compiles on it (23.0.0 locks 1.5.0).
       - name: Install Stellar CLI
-        run: cargo install --locked stellar-cli --version 23.0.0
+        run: cargo install --locked stellar-cli --version 27.1.0
       - name: Optimize WASM artifacts
         shell: bash
         run: |
