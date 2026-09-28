@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",

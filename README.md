@@ -460,7 +460,7 @@ docker run --rm -v $(pwd):/app soroban-amm-build
 ```
 
 - **Base Image**: `rust:1.98.1-slim-bookworm` (matches `rust-toolchain.toml`)
-- **Stellar CLI**: `25.1.0`
+- **Stellar CLI**: `27.1.0`
 
 ### Deploy via Factory
 

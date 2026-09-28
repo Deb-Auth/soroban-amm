@@ -27,7 +27,7 @@ updates:
       # v17 introduces ScValType changes that break src/governance.ts.
       - dependency-name: "@stellar/stellar-sdk"
         update-types: ["version-update:semver-major"]
-      # A major @types/node bump should move with node-version in ci.yml,
+      # A major @types/node bump should move with the Node major in .nvmrc,
       # not arrive on its own - types for a newer Node type-check APIs the
       # CI runtime does not have (#976).
       - dependency-name: "@types/node"

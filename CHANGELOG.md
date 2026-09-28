@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Re-baseline stored Monte Carlo reports.** Changing the generator changes the draws, so a seeded run produces different sample statistics than it did on the previous release (the distributions are equivalent; the individual numbers move). This is a one-time shift — the point of the change is that it will not happen again unnoticed.
 
 ### Fixed
+- The Docker image and the release workflow pinned Stellar CLI releases whose locked dependency tree no longer compiles on the pinned Rust 1.98.1. `cargo install stellar-cli --locked` builds the CLI's own `Cargo.lock`, and 25.1.0 (Dockerfile) and 23.0.0 (`release.yml`) lock `ethnum` 1.5.2 and 1.5.0, which fail with `E0512: cannot transmute between types of different sizes`. That failed the `docker-build` CI job on every commit since it was added (#1017), and would have failed the next tagged release at "Install Stellar CLI". Both now use 27.1.0, the version `smoke-test.yml` already uses: the Docker image builds it from source (it locks `ethnum` 1.5.3) and also installs `libdbus-1-dev` and `libudev-dev`, which 27.x needs on Linux, and `release.yml` installs it with the `stellar/stellar-cli` action as `smoke-test.yml` does instead of compiling it. `README.md` lists the same version. With the CLI building, `docker-build` then reached the Dockerfile's dependency-caching `cargo fetch`, which had never run: it copies only the member manifests, and Cargo will not load a manifest whose targets have no source file. That step now creates empty placeholders for each member's targets, fetches, and deletes them in the same layer.
 - `soroban_amm_simulator`: the concentrated-liquidity module had no swap engine, and `ClPoolState::current_tick` was hardcoded to 0 by `initialize` whatever the price (#961). `ClPoolState::swap` now ports the contract's tick walk step for step (tick crossing with `liquidity_net`, fee growth and `fee_growth_outside` flips, protocol fee split, price limits, partial fills), `initialize` derives the tick from the price, and a new `initialize_at_tick` mirrors the contract's `initialize`. `tests/cl_swap_parity.rs` runs the real contract beside the simulator on shared fixtures and requires exact agreement after every swap. The sqrt price and current tick are now private (read them with `sqrt_price_x96()` / `current_tick()`) so they can no longer be set out of step with each other, `cl::math::sqrt_price_x96_to_tick` now returns the floor tick as the contract does instead of rounding up between ticks, `ClPoolState::new` rejects `fee_bps = 10_000` as the contract does, and the placeholder `initialize_tick`, which created tick entries the contract can never hold, is removed.
 - `concentrated_liquidity`: the position path (mint, single-token mint and its
   quote, `modify_position`, burn, `quote_position`) converted between liquidity
@@ -56,6 +57,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   legacy entry that is really a CL pool is re-typed `Cl` by the keeper's next
   `save_cl_snapshot` for it; until then `get_twap_all` returns
   `CrossContractCallFailed` for it rather than trapping (#964).
+- `@types/node` matches the Node 22 runtime CI uses. `packages/sdk`,
+  `services/graphql-api` and `services/webhook-streamer` type-checked against
+  Node 26 typings, so `tsc` accepted APIs that do not exist on Node 22; all
+  three are on `^22.20.4` now (webhook-streamer's exact `26.5.0` pin came from
+  a Dependabot bump and is replaced by a caret range like the others). `.nvmrc`
+  is the single source of the CI Node major, `setup-node` reads it, every
+  package in the CI matrix declares `engines.node: ">=22"`, and a new
+  `node-versions` CI job (`make check-node-versions`) fails when any package's
+  `@types/node` or `engines.node` disagrees with it (#983).
 - `@soroban-amm/sdk`: `AmmErrors` / `AmmErrorNames` stopped at code 18, so `decodeError` fell through to a generic error for `AlreadyExecuted` (19), `ProposalExpired` (20) and the new `NotInitialized` (21). All three are now mapped, and a test parses `pub enum AmmError` from `contracts/amm/src/lib.rs` so the TypeScript map can't fall behind the contract again unnoticed.
 - `incentive_campaigns`: `recover_leftover_funds` could run more than once on the same campaign. Recovery marks the campaign inactive but leaves `funding_amount - total_distributed` unchanged, so every repeat call transferred the same leftover again, taken from the balance other campaigns hold in the same reward token. A campaign that is already inactive now returns `IncentiveError::CampaignInactive`.
 - `concentrated_liquidity`: the swap engine priced every step in a

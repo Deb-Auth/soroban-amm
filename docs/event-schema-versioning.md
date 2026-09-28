@@ -107,15 +107,13 @@ that emit versioned events. Keep it synchronized with every
 hard-coded site count because tests and helper examples may also contain macro
 calls.
 
-`contracts/staking/src/lib.rs` already emits several plain
-(unversioned) events via `env.events().publish(...)` directly, predating
-this scheme -- it does not depend on `soroban_amm_sdk`, so it was left on
-its existing style rather than migrated to `emit_versioned_event!` as
-part of an unrelated change (see the new `boost_exp` event below, added
-for issue #699, which follows the same existing plain-event convention
-for consistency with the rest of the contract). A full migration of
-`staking` onto the versioned scheme is tracked separately and out of
-scope here.
+`contracts/staking/src/lib.rs` is now fully migrated onto the versioned
+scheme (issue #912). Every event it emits goes through
+`emit_versioned_event!`; there are no remaining raw `env.events().publish(...)`
+calls outside its test modules, and the crate now depends on
+`soroban_amm_sdk`. An indexer therefore reads a leading `schema_version`
+on every staking event, exactly as it does for the AMM, CL, governance,
+and factory contracts.
 
 `contracts/twal_consumer/src/lib.rs` is intentionally out of scope. It
 already emitted an unversioned `snapshot_deleted` event before this
@@ -324,14 +322,25 @@ carries the output the pools actually returned, not the quoted amount.
 `pause` / `unpause` (#937, #938) are emitted by the admin pause switch on both
 the router and the DEX aggregator, after the stored-admin check passes.
 
-### Staking — `contracts/staking/src/lib.rs` (unversioned, plain events)
+### Staking — `contracts/staking/src/lib.rs` (versioned events)
 
-Staking predates this scheme and is not yet migrated (see note above), so
-its events carry no `schema_version` prefix -- the payload below is the
-on-wire shape as-is, not `(schema_version, payload)`.
+Migrated to `emit_versioned_event!` (issue #912). Every row below has the
+on-wire data shape `(schema_version, payload)`.
 
 | Event | Topics | Payload |
 |---|---|---|
+| `staked` | — | `(staker: Address, amount: i128, boost: i128, lock_expiry: u64)` |
+| `unstaked` | — | `(staker: Address, amount: i128, rewards: i128)` |
+| `lock_extended` | — | `(staker: Address, boost: i128, lock_expiry: u64)` |
+| `claimed` | — | `(staker: Address, rewards: i128)` |
+| `rewards_added` | — | `(admin: Address, amount: i128)` |
+| `rewards_updated` | — | `(distributable: i128)` |
+| `rewards_clamped` | — | `(requested: i128, pool_balance: i128)` |
+| `max_reward_pool_balance_set` | — | `(admin: Address, max_balance: i128)` |
+| `paused` | — | `(admin: Address)` |
+| `unpaused` | — | `(admin: Address)` |
+| `emergency_mode` | — | `(admin: Address, enabled: bool)` |
+| `emergency_withdraw` | — | `(staker: Address, amount: i128)` |
 | `boost_exp` | — | `(staker: Address, previous_boost: i128, settled_boost: i128)` |
 
 `boost_exp` (issue #699) is emitted by `settle_boost`/`settle_boost_batch`
@@ -388,12 +397,11 @@ for it is listed in the Concentrated-liquidity AMM event table above.
 
 ## Update (#689)
 
-`contracts/oracle_aggregator/src/lib.rs` gained a new unversioned `src_wt`
-event emitted by `set_source_weight`, consistent with the oracle aggregator's
-existing plain-event convention (predating the `emit_versioned_event!` scheme).
-The event is emitted via `env.events().publish(...)` directly.
+`contracts/oracle_aggregator/src/lib.rs` gained a new `src_wt` event emitted
+by `set_source_weight`. It has since been migrated onto the versioned scheme
+(see #916 below).
 
-### Oracle Aggregator — `contracts/oracle_aggregator/src/lib.rs` (unversioned, plain events)
+### Oracle Aggregator — `contracts/oracle_aggregator/src/lib.rs`
 
 | Event | Topics | Payload |
 |---|---|---|
@@ -436,3 +444,34 @@ test modules.
 
 All event rows for these contracts are listed in the catalogue above under the
 Factory, Token, Reserve Manager, and Batch Auction sections.
+
+## Update (#916)
+
+`contracts/oracle_aggregator/src/lib.rs` is now fully migrated onto the
+versioned scheme. All four raw `env.events().publish(...)` sites
+(`price`, `src_wt`, `stale_src`, `deviant`) now emit through
+`emit_versioned_event!`, with one test per topic decoding the payload as a
+version-stamped `(u32, T)` pair in the style of `last_versioned_event` from
+the governance test module. No raw `env.events().publish` call remains in
+`contracts/oracle_aggregator/src/` outside test modules. The event row for
+this contract, listed above under Oracle Aggregator, is unchanged except for
+the leading `schema_version` field now present on the wire.
+
+## Update (#915)
+
+`contracts/cl_position_nft/src/lib.rs` is now fully migrated onto the
+versioned scheme. All five raw `env.events().publish(...)` sites
+(`nft_mint`, `nft_burn`, `approve`, `approval_for_all`, `transfer`) now emit
+through `emit_versioned_event!`, with one test per topic decoding the payload
+as a version-stamped `(u32, T)` pair. No raw `env.events().publish` call
+remains in `contracts/cl_position_nft/src/` outside test modules.
+
+### CL Position NFT — `contracts/cl_position_nft/src/lib.rs`
+
+| Event | Topics | Payload |
+|---|---|---|
+| `nft_mint` | `to` | `(token_id: u64,)` |
+| `nft_burn` | `owner` | `(token_id: u64,)` |
+| `approve` | `caller`, `approved` | `(token_id: u64,)` |
+| `approval_for_all` | `owner`, `operator` | `(approved: bool,)` |
+| `transfer` | `from`, `to` | `(token_id: u64,)` |
