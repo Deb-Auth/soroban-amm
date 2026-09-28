@@ -92,6 +92,9 @@ describe("poolEvent subscription", () => {
     const iterator = resolvers.Subscription.poolEvent.subscribe(undefined, {
       poolId: "pool-7",
     });
+    // graphql-subscriptions 3 returns an AsyncIterableIterator, which is
+    // what Apollo Server's subscription support iterates.
+    assert.equal(typeof iterator[Symbol.asyncIterator], "function");
     const next = iterator.next();
     const event = { poolEvent: { id: "evt-1", poolId: "pool-7" } };
     await pubsub.publish("EVENT:pool-7", event);

@@ -87,7 +87,7 @@ export const resolvers = {
   Subscription: {
     poolEvent: {
       subscribe: (_: unknown, { poolId }: { poolId?: string }) =>
-        pubsub.asyncIterator(poolId ? `EVENT:${poolId}` : "EVENT:ALL"),
+        pubsub.asyncIterableIterator(poolId ? `EVENT:${poolId}` : "EVENT:ALL"),
     },
   },
 };
