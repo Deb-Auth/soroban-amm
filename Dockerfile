@@ -71,7 +71,29 @@ COPY examples/flash_loan_receiver/Cargo.toml    examples/flash_loan_receiver/Car
 # Fetch all registry dependencies so the network is not needed during the
 # actual build.  rustup installs the pinned toolchain (including
 # wasm32v1-none) on first invocation via rust-toolchain.toml.
-RUN cargo fetch
+#
+# Cargo will not load a manifest whose targets have no source file, so each
+# member first gets an empty placeholder for the files its manifest implies:
+# every explicit `path = "..."` target, plus src/lib.rs for a [lib] crate or
+# src/main.rs for a binary-only one. The placeholders are deleted in the same
+# step, so none reach the image; `COPY . .` below brings the real sources.
+RUN set -eu; \
+    stubs=$(mktemp); \
+    for manifest in $(find . -name Cargo.toml -not -path ./Cargo.toml); do \
+        dir=$(dirname "$manifest"); \
+        { sed -n 's/^path *= *"\(.*\)"/\1/p' "$manifest"; \
+          if grep -q '^\[lib\]' "$manifest"; then echo src/lib.rs; else echo src/main.rs; fi; \
+        } | sort -u | while read -r file; do \
+            if [ ! -e "$dir/$file" ]; then \
+                mkdir -p "$dir/$(dirname "$file")"; \
+                : > "$dir/$file"; \
+                echo "$dir/$file" >> "$stubs"; \
+            fi; \
+        done; \
+    done; \
+    cargo fetch; \
+    xargs rm -f < "$stubs"; \
+    rm -f "$stubs"
 
 # Copy the full source tree and build.
 COPY . .
