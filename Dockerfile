@@ -3,10 +3,13 @@
 # pre-installed toolchain is reused rather than replaced on every build.
 FROM rust:1.98.1-slim-bookworm
 
-# Install system dependencies
+# Install system dependencies. libdbus-1-dev and libudev-dev are needed to
+# build stellar-cli from source on Linux (its keyring and Ledger support).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
+    libdbus-1-dev \
+    libudev-dev \
     build-essential \
     ca-certificates \
     curl \
